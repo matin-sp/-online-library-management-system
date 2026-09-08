@@ -23,7 +23,7 @@ func (h *UserHandler) Register(c *gin.Context) {
     // 1. Parse and Validate the incoming JSON
     var user model.User
     if err := c.ShouldBindJSON(&user); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input data"})
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
@@ -47,7 +47,7 @@ func (h *UserHandler) Login(c *gin.Context) {
     }
 
     if err := c.ShouldBindJSON(&loginData); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input data"})
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 

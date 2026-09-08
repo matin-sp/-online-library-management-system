@@ -1,0 +1,20 @@
+### Register a new user
+POST http://localhost:8080/api/register
+Content-Type: application/json
+
+{
+    "name": "Matin",
+    "email": "matin@example.com",
+    "password": "12345678",
+    "role": "member"
+}
+
+### Login
+POST http://localhost:8080/api/login
+Content-Type: application/json
+
+{
+    "email": "matin@example.com",
+    "password": "12345678"
+}
+
