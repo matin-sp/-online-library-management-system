@@ -23,6 +23,6 @@ func main() {
         api.POST("/login", userHandler.Login)
     }
 
-    // 3. Run the server on port 8080
-    router.Run(":8080")
+    // 3. Run the server on port 9090
+    router.Run(":9090")
 }
