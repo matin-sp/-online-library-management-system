@@ -1,4 +1,4 @@
-### Register a new user
+### 1. Register a new user (If server restarted)
 POST http://localhost:9090/api/register
 Content-Type: application/json
 
@@ -9,7 +9,7 @@ Content-Type: application/json
     "role": "member"
 }
 
-### Login
+### 2. Login to get the JWT token
 POST http://localhost:9090/api/login
 Content-Type: application/json
 
@@ -18,3 +18,9 @@ Content-Type: application/json
     "password": "12345678"
 }
 
+### 3. Test Protected Route WITHOUT token (Should give 401)
+GET http://localhost:9090/api/me/profile
+
+### 4. Test Protected Route WITH token (Should give 200)
+GET http://localhost:9090/api/me/profile
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODkzOTY5MTUsInJvbGUiOiJtZW1iZXIiLCJ1c2VyX2lkIjowfQ.A-EmIruaitM8SqcwDe_PfreyBDH_-4YPKUbGoTKDn6k
