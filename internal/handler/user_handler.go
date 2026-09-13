@@ -61,3 +61,15 @@ func (h *UserHandler) Login(c *gin.Context) {
     // 3. Send success response with the JWT token
     c.JSON(http.StatusOK, gin.H{"message": "login successful", "token": token})
 }
+// Profile handles GET /me/profile (Protected route)
+func (h *UserHandler) Profile(c *gin.Context) {
+    // Middleware has already verified the token and put the user_id in the context
+    userID, _ := c.Get("user_id")
+    role, _ := c.Get("role")
+
+    c.JSON(http.StatusOK, gin.H{
+        "message": "Welcome to your profile!",
+        "user_id": userID,
+        "role":    role,
+    })
+}
