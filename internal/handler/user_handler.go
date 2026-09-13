@@ -51,13 +51,13 @@ func (h *UserHandler) Login(c *gin.Context) {
         return
     }
 
-    // 2. Call the service layer to check credentials
-    user, err := h.service.Login(loginData.Email, loginData.Password)
+    // 2. Call the service layer to check credentials and get the token
+    token, err := h.service.Login(loginData.Email, loginData.Password)
     if err != nil {
         c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
         return
     }
 
-    // 3. Send success response (we will add JWT here in the next step)
-    c.JSON(http.StatusOK, gin.H{"message": "login successful", "user_id": user.ID})
+    // 3. Send success response with the JWT token
+    c.JSON(http.StatusOK, gin.H{"message": "login successful", "token": token})
 }
