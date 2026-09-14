@@ -2,6 +2,7 @@ package service
 
 import (
     "errors"
+    "os"
     "time"
 
     "github.com/golang-jwt/jwt/v5"
@@ -56,8 +57,8 @@ func (s *UserService) Login(email, password string) (string, error) {
         "exp":     time.Now().Add(time.Hour * 24).Unix(), // Token expires in 24 hours
     })
 
-    // 4. Sign the token with our secret key
-    secretKey := "my-super-secret-key"
+    // 4. Sign the token with our secret key from .env
+    secretKey := os.Getenv("JWT_SECRET")
     tokenString, err := token.SignedString([]byte(secretKey))
     if err != nil {
         return "", errors.New("failed to generate token")

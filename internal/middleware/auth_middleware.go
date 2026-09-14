@@ -1,7 +1,9 @@
 package middleware
 
 import (
+    "errors"
     "net/http"
+    "os"
     "strings"
 
     "github.com/gin-gonic/gin"
@@ -30,12 +32,13 @@ func AuthMiddleware() gin.HandlerFunc {
         tokenString := parts[1]
 
         // 3. Parse and Validate the token
-        // Note: This secret key MUST match the one in user_service.go
-        secretKey := "my-super-secret-key"
+        // Read the secret key from environment variables (.env file)
+        secretKey := os.Getenv("JWT_SECRET")
 
         token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
             if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-                return nil, gin.Error{Err: nil} // basic error handling
+                // Fix: Return a proper error instead of gin.Error to prevent Panic
+                return nil, errors.New("unexpected signing method")
             }
             return []byte(secretKey), nil
         })
@@ -47,7 +50,6 @@ func AuthMiddleware() gin.HandlerFunc {
         }
 
         // 4. Extract claims (user_id and role) and set them in the context
-        // so the handler can use them later
         if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
             c.Set("user_id", claims["user_id"])
             c.Set("role", claims["role"])
@@ -57,8 +59,6 @@ func AuthMiddleware() gin.HandlerFunc {
         c.Next()
     }
 }
-
-
 
 
 
