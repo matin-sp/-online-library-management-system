@@ -22,7 +22,6 @@ func NewUserHandler(service *service.UserService) *UserHandler {
 
 // --- DTOs (Data Transfer Objects) for Validation ---
 
-// We use separate structs for input so users cannot set their own Role!
 type registerRequest struct {
     Name     string `json:"name" binding:"required"`
     Email    string `json:"email" binding:"required,email"`
@@ -40,7 +39,6 @@ type loginRequest struct {
 func (h *UserHandler) Register(c *gin.Context) {
     var req registerRequest
     if err := c.ShouldBindJSON(&req); err != nil {
-        // Handle validation errors cleanly (Task 1 Requirement)
         var ve validator.ValidationErrors
         if errors.As(err, &ve) {
             for _, fe := range ve {
@@ -66,12 +64,11 @@ func (h *UserHandler) Register(c *gin.Context) {
         return
     }
 
-    // Map DTO to Model (and force the role to be member!)
     user := model.User{
         Name:         req.Name,
         Email:        req.Email,
         PasswordHash: req.Password,
-        Role:         "member", // Server-side role assignment (Fixes Security Bug)
+        Role:         "member",
     }
 
     if err := h.service.Register(user); err != nil {
@@ -114,8 +111,16 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 // Profile handles GET /me/profile (Protected route)
 func (h *UserHandler) Profile(c *gin.Context) {
-    userID, _ := c.Get("user_id")
-    role, _ := c.Get("role")
+    userID, exists := c.Get("user_id")
+    if !exists {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "user id not found in context"})
+        return
+    }
+    role, exists := c.Get("role")
+    if !exists {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "role not found in context"})
+        return
+    }
 
     c.JSON(http.StatusOK, gin.H{
         "message": "Welcome to your profile!",

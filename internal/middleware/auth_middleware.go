@@ -55,7 +55,7 @@ func AuthMiddleware() gin.HandlerFunc {
             c.Set("role", claims["role"])
         }
 
-        // 5. Pass to the next handler
+        // 5. Pass to the handler
         c.Next()
     }
 }
