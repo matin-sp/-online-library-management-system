@@ -2,35 +2,43 @@ package repository
 
 import (
     "errors"
+
     "github.com/matin-sp/-online-library-management-system/internal/model"
+    "gorm.io/gorm"
 )
 
-// UserRepository manages our temporary in-memory database
+// UserRepository manages our database operations using GORM
 type UserRepository struct {
-    users map[string]model.User // we use a map for faster lookup by email
+    db *gorm.DB // Instead of a map, we now hold the database connection
 }
 
-// NewUserRepository creates a new empty repository
-func NewUserRepository() *UserRepository {
-    return &UserRepository{
-        users: make(map[string]model.User),
-    }
+// NewUserRepository creates a new repository with the database connection
+func NewUserRepository(db *gorm.DB) *UserRepository {
+    return &UserRepository{db: db}
 }
 
-// Save adds a new user to our temporary database
+// Save adds a new user to the PostgreSQL database
 func (r *UserRepository) Save(user model.User) error {
-    if _, exists := r.users[user.Email]; exists {
-        return errors.New("user with this email already exists")
+    // db.Create translates to: INSERT INTO users (...) VALUES (...)
+    result := r.db.Create(&user)
+    if result.Error != nil {
+        // If database returns an error (like duplicate email), we send it back
+        return result.Error
     }
-    r.users[user.Email] = user
     return nil
 }
 
-// FindByEmail looks for a user by their email
+// FindByEmail looks for a user by their email in PostgreSQL
 func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
-    user, exists := r.users[email]
-    if !exists {
-        return nil, errors.New("user not found")
+    var user model.User
+    // db.First translates to: SELECT * FROM users WHERE email = ? LIMIT 1
+    result := r.db.Where("email = ?", email).First(&user)
+    if result.Error != nil {
+        // gorm.ErrRecordNotFound means no user found with this email
+        if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+            return nil, errors.New("user not found")
+        }
+        return nil, result.Error
     }
     return &user, nil
 }
