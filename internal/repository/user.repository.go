@@ -1,44 +1,49 @@
 package repository
 
 import (
+    "database/sql"
     "errors"
 
     "github.com/matin-sp/-online-library-management-system/internal/model"
-    "gorm.io/gorm"
 )
 
-// UserRepository manages our database operations using GORM
 type UserRepository struct {
-    db *gorm.DB // Instead of a map, we now hold the database connection
+    db *sql.DB 
 }
 
-// NewUserRepository creates a new repository with the database connection
-func NewUserRepository(db *gorm.DB) *UserRepository {
+func NewUserRepository(db *sql.DB) *UserRepository {
     return &UserRepository{db: db}
 }
 
-// Save adds a new user to the PostgreSQL database
+// Save (Create) - How queries are written & safe parameters
 func (r *UserRepository) Save(user model.User) error {
-    // db.Create translates to: INSERT INTO users (...) VALUES (...)
-    result := r.db.Create(&user)
-    if result.Error != nil {
-        // If database returns an error (like duplicate email), we send it back
-        return result.Error
+    // We use $1, $2 for safe parameter passing (prevents SQL Injection)
+    _, err := r.db.Exec(
+        "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4)",
+        user.Name, user.Email, user.PasswordHash, user.Role,
+    )
+    if err != nil {
+        // How database errors are handled
+        return err
     }
     return nil
 }
 
-// FindByEmail looks for a user by their email in PostgreSQL
+// FindByEmail (Read) - How rows are retrieved and scanned
 func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
     var user model.User
-    // db.First translates to: SELECT * FROM users WHERE email = ? LIMIT 1
-    result := r.db.Where("email = ?", email).First(&user)
-    if result.Error != nil {
-        // gorm.ErrRecordNotFound means no user found with this email
-        if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+    
+    // We write raw SQL and tell the database where to put the retrieved data using Scan()
+    err := r.db.QueryRow(
+        "SELECT id, name, email, password_hash, role FROM users WHERE email = $1", email,
+    ).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.Role)
+    
+    // How database errors are handled (specifically "not found" error)
+    if err != nil {
+        if errors.Is(err, sql.ErrNoRows) {
             return nil, errors.New("user not found")
         }
-        return nil, result.Error
+        return nil, err
     }
     return &user, nil
 }
