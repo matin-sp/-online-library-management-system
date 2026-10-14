@@ -47,9 +47,9 @@ func main() {
 	userHandler := handler.NewUserHandler(userService)
 
 	// --- AUTHOR FEATURE ---
-	// authorRepo := repository.NewAuthorRepository(db)
-	// authorService := service.NewAuthorService(authorRepo)
-	// authorHandler := handler.NewAuthorHandler(authorService)
+	authorRepo := repository.NewAuthorRepository(db)
+	authorService := service.NewAuthorService(authorRepo)
+	authorHandler := handler.NewAuthorHandler(authorService)
 	// --- END AUTHOR FEATURE ---
 
 	// --- BOOK FEATURE ---
@@ -67,8 +67,8 @@ func main() {
 		api.POST("/login", userHandler.Login)
 
 		// --- AUTHOR FEATURE: reading is public ---
-		// api.GET("/authors", authorHandler.GetAll)
-		// api.GET("/authors/:id", authorHandler.GetByID)
+		api.GET("/authors", authorHandler.GetAll)
+		api.GET("/authors/:id", authorHandler.GetByID)
 		// --- END AUTHOR FEATURE ---
 
 		// --- BOOK FEATURE: reading is public ---
@@ -84,10 +84,10 @@ func main() {
 		protected.GET("/me/profile", userHandler.Profile)
 
 		// --- AUTHOR FEATURE: changing data needs a valid JWT ---
-		// protected.POST("/authors", authorHandler.Create)
-		// protected.PUT("/authors/:id", authorHandler.Update)
-		// protected.DELETE("/authors/:id", authorHandler.Delete)
-		// // --- END AUTHOR FEATURE ---
+		protected.POST("/authors", authorHandler.Create)
+		protected.PUT("/authors/:id", authorHandler.Update)
+		protected.DELETE("/authors/:id", authorHandler.Delete)
+		// --- END AUTHOR FEATURE ---
 
 		// --- BOOK FEATURE: changing data needs a valid JWT ---
 		protected.POST("/books", bookHandler.Create)
