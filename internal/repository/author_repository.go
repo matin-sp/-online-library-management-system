@@ -8,12 +8,10 @@ import (
 	"github.com/matin-sp/-online-library-management-system/internal/model"
 )
 
-// Sentinel errors: named, comparable error values. Callers check them with
-// errors.Is(err, repository.ErrAuthorNotFound) instead of comparing text,
-// which would silently break if someone reworded the message.
 var (
 	ErrAuthorNotFound = errors.New("author not found")
 	ErrAuthorHasBooks = errors.New("author still has books")
+	ErrAuthorExists   = errors.New("author already exists")
 )
 
 type AuthorRepository struct {
@@ -24,24 +22,31 @@ func NewAuthorRepository(db *sql.DB) *AuthorRepository {
 	return &AuthorRepository{db: db}
 }
 
-// Create inserts a new author and returns it with the id Postgres generated.
+// 23505 = unique_violation: the database refused a duplicate value.
+func isUniqueViolation(err error) bool {
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && pqErr.Code == "23505"
+}
+
 func (r *AuthorRepository) Create(author model.Author) (*model.Author, error) {
 	err := r.db.QueryRow(
-		"INSERT INTO authors (name, country) VALUES ($1, $2) RETURNING id",
-		author.Name, author.Country,
+		"INSERT INTO authors (name) VALUES ($1) RETURNING id",
+		author.Name,
 	).Scan(&author.ID)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, ErrAuthorExists
+		}
 		return nil, err
 	}
 	return &author, nil
 }
 
-// GetByID fetches a single author.
 func (r *AuthorRepository) GetByID(id int) (*model.Author, error) {
 	var author model.Author
 	err := r.db.QueryRow(
-		"SELECT id, name, country FROM authors WHERE id = $1", id,
-	).Scan(&author.ID, &author.Name, &author.Country)
+		"SELECT id, name FROM authors WHERE id = $1", id,
+	).Scan(&author.ID, &author.Name)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrAuthorNotFound
@@ -51,19 +56,17 @@ func (r *AuthorRepository) GetByID(id int) (*model.Author, error) {
 	return &author, nil
 }
 
-// GetAll fetches every author ordered by name.
 func (r *AuthorRepository) GetAll() ([]model.Author, error) {
-	rows, err := r.db.Query("SELECT id, name, country FROM authors ORDER BY name")
+	rows, err := r.db.Query("SELECT id, name FROM authors ORDER BY name")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	// make(..., 0) so an empty table serializes as [] in JSON, not null.
 	authors := make([]model.Author, 0)
 	for rows.Next() {
 		var a model.Author
-		if err := rows.Scan(&a.ID, &a.Name, &a.Country); err != nil {
+		if err := rows.Scan(&a.ID, &a.Name); err != nil {
 			return nil, err
 		}
 		authors = append(authors, a)
@@ -74,18 +77,18 @@ func (r *AuthorRepository) GetAll() ([]model.Author, error) {
 	return authors, nil
 }
 
-// Update overwrites an existing author's fields.
 func (r *AuthorRepository) Update(author model.Author) error {
 	result, err := r.db.Exec(
-		"UPDATE authors SET name = $1, country = $2 WHERE id = $3",
-		author.Name, author.Country, author.ID,
+		"UPDATE authors SET name = $1 WHERE id = $2",
+		author.Name, author.ID,
 	)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return ErrAuthorExists
+		}
 		return err
 	}
 
-	// An UPDATE that matches no row is not an error in SQL - it just changes
-	// nothing. RowsAffected lets us report that as "not found".
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err
@@ -96,9 +99,6 @@ func (r *AuthorRepository) Update(author model.Author) error {
 	return nil
 }
 
-// Delete removes an author. If books still point at this author, Postgres
-// refuses with a foreign key violation (SQLSTATE 23503); we translate that
-// into ErrAuthorHasBooks so the API can answer 409 instead of a vague 500.
 func (r *AuthorRepository) Delete(id int) error {
 	result, err := r.db.Exec("DELETE FROM authors WHERE id = $1", id)
 	if err != nil {

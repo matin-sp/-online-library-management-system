@@ -5,16 +5,12 @@ import (
 	"github.com/matin-sp/-online-library-management-system/internal/repository"
 )
 
-// Re-exported so the handler layer can check errors without importing the
-// repository package (handler -> service -> repository stays one-directional).
 var (
 	ErrAuthorNotFound = repository.ErrAuthorNotFound
 	ErrAuthorHasBooks = repository.ErrAuthorHasBooks
 )
 
-// AuthorService holds the business logic for authors. Today it just passes
-// calls through; rules like "no duplicate author names" would be added here,
-// not in the handler (HTTP) or the repository (SQL).
+
 type AuthorService struct {
 	repo *repository.AuthorRepository
 }

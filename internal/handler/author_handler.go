@@ -23,11 +23,10 @@ func NewAuthorHandler(service *service.AuthorService) *AuthorHandler {
 // authorRequest is the DTO for create/update bodies. The id is never taken
 // from the body - it comes from the database (create) or the URL (update).
 type authorRequest struct {
-	Name    string `json:"name" binding:"required,max=100"`
-	Country string `json:"country" binding:"max=50"`
+	Name string `json:"name" binding:"required,max=100"`
 }
 
-const invalidAuthorBody = "invalid request body: name is required (max 100 characters), country is optional (max 50 characters)"
+const invalidAuthorBody = "invalid request body: name is required (max 100 characters)"
 
 // authorIDFromParam reads and validates the :id URL parameter.
 // It writes the 400 response itself, so callers just return when ok is false.
@@ -63,7 +62,7 @@ func (h *AuthorHandler) Create(c *gin.Context) {
 		return
 	}
 
-	author, err := h.service.Create(model.Author{Name: req.Name, Country: req.Country})
+	author, err := h.service.Create(model.Author{Name: req.Name})
 	if err != nil {
 		respondAuthorError(c, err)
 		return
@@ -71,7 +70,6 @@ func (h *AuthorHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, author)
 }
 
-// GetAll handles GET /api/authors
 func (h *AuthorHandler) GetAll(c *gin.Context) {
 	authors, err := h.service.GetAll()
 	if err != nil {
@@ -96,7 +94,7 @@ func (h *AuthorHandler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, author)
 }
 
-// Update handles PUT /api/authors/:id (full replacement of name and country)
+
 func (h *AuthorHandler) Update(c *gin.Context) {
 	id, ok := authorIDFromParam(c)
 	if !ok {
@@ -109,7 +107,7 @@ func (h *AuthorHandler) Update(c *gin.Context) {
 		return
 	}
 
-	author := model.Author{ID: id, Name: req.Name, Country: req.Country}
+	author := model.Author{ID: id, Name: req.Name}
 	if err := h.service.Update(author); err != nil {
 		respondAuthorError(c, err)
 		return
