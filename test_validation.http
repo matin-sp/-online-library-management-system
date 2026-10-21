@@ -1,0 +1,233 @@
+### Variables
+@baseUrl = http://localhost:9090
+@token = paste_token_here_after_login
+
+### ==========================================
+### STEP 0: Setup — Register and Login
+### ==========================================
+
+### 0.1 Register a test user
+POST {{baseUrl}}/api/register
+Content-Type: application/json
+
+{
+  "name": "Test Admin",
+  "email": "admin@example.com",
+  "password": "secret123"
+}
+
+### 0.2 Login (copy the token from response and paste it in @token above)
+POST {{baseUrl}}/api/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "secret123"
+}
+
+### ==========================================
+### AUTHORS — CHECK constraints
+### ==========================================
+
+### 1. Empty name (should be rejected)
+POST {{baseUrl}}/api/authors
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": ""
+}
+
+### Expected: 500 (CHECK authors_name_not_blank)
+### Server log: "violates check constraint authors_name_not_blank"
+
+### 2. Whitespace-only name (should be rejected — trim() makes it empty)
+POST {{baseUrl}}/api/authors
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "   "
+}
+
+### Expected: 500 (same constraint — length(trim(name)) = 0)
+
+### 3. Name longer than 100 characters (should be rejected)
+POST {{baseUrl}}/api/authors
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+}
+
+### Expected: 500 (VARCHAR(100) overflow)
+
+### 4. Create a valid author
+POST {{baseUrl}}/api/authors
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "George Orwell"
+}
+
+### Expected: 201 Created
+
+### 5. Same author name in lowercase (case-insensitive unique — should be rejected)
+POST {{baseUrl}}/api/authors
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "george orwell"
+}
+
+### Expected: 500 (UNIQUE INDEX authors_name_unique)
+### Server log: "duplicate key value violates unique constraint authors_name_unique"
+
+### 6. Same author name in UPPERCASE (case-insensitive unique — should be rejected)
+POST {{baseUrl}}/api/authors
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "GEORGE ORWELL"
+}
+
+### Expected: 500 (same INDEX)
+
+### ==========================================
+### USERS — CHECK constraints
+### ==========================================
+
+### 7. Register with empty name (should be rejected)
+POST {{baseUrl}}/api/register
+Content-Type: application/json
+
+{
+  "name": "",
+  "email": "test1@example.com",
+  "password": "secret123"
+}
+
+### Expected: 400 (handler DTO validation is first line of defense — required)
+
+### 8. Register with uppercase email (should be rejected — CHECK users_email_lowercase)
+POST {{baseUrl}}/api/register
+Content-Type: application/json
+
+{
+  "name": "Test User 2",
+  "email": "TEST2@example.com",
+  "password": "secret123"
+}
+
+### Expected: 500 (CHECK users_email_lowercase)
+### Server log: "violates check constraint users_email_lowercase"
+### Note: This means the app is NOT lowercasing email yet — that is the next step (normalization)
+
+### 9. Register with duplicate email (should be rejected — UNIQUE email)
+POST {{baseUrl}}/api/register
+Content-Type: application/json
+
+{
+  "name": "Another User",
+  "email": "admin@example.com",
+  "password": "secret123"
+}
+
+### Expected: 409 Conflict (handler maps error code 23505 to 409)
+
+### ==========================================
+### BOOKS — CHECK constraints
+### ==========================================
+
+### 10. Book with empty title (should be rejected)
+POST {{baseUrl}}/api/books
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "",
+  "release_year": 1949,
+  "author_id": 1
+}
+
+### Expected: 500 (CHECK books_title_not_blank)
+
+### 11. Book with year 0 (should be rejected)
+POST {{baseUrl}}/api/books
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Test Book",
+  "release_year": 0,
+  "author_id": 1
+}
+
+### Expected: 500 (CHECK books_year_valid — 0 is not BETWEEN 1000 AND 2100)
+
+### 12. Book with year 99999 (should be rejected)
+POST {{baseUrl}}/api/books
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Test Book 2",
+  "release_year": 99999,
+  "author_id": 1
+}
+
+### Expected: 500 (CHECK books_year_valid)
+
+### 13. Book with non-existent author_id (FK violation — should be rejected)
+POST {{baseUrl}}/api/books
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Test Book 3",
+  "release_year": 1949,
+  "author_id": 9999
+}
+
+### Expected: 400 Bad Request (handler maps error code 23503 to ErrInvalidAuthor -> 400)
+
+### 14. Create a valid book
+POST {{baseUrl}}/api/books
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "1984",
+  "release_year": 1949,
+  "author_id": 1
+}
+
+### Expected: 201 Created
+
+### 15. Same book with same author (composite unique — should be rejected)
+POST {{baseUrl}}/api/books
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "1984",
+  "release_year": 1949,
+  "author_id": 1
+}
+
+### Expected: 500 (UNIQUE books_title_author_unique)
+### Server log: "duplicate key value violates unique constraint books_title_author_unique"
+
+### ==========================================
+### FOREIGN KEY — ON DELETE RESTRICT
+### ==========================================
+
+### 16. Try to delete an author who still has books (should be rejected)
+DELETE {{baseUrl}}/api/authors/1
+Authorization: Bearer {{token}}
+
+### Expected: 409 Conflict (handler maps error code 23503 to ErrAuthorHasBooks -> 409)
