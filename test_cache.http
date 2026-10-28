@@ -1,0 +1,130 @@
+### Variables
+@baseUrl = http://localhost:9090
+
+### ==========================================
+### STEP 0: Setup — Register and Login
+### ==========================================
+
+### 0.1 Register a test user
+POST {{baseUrl}}/api/register
+Content-Type: application/json
+
+{
+  "name": "Cache Tester",
+  "email": "cache_test@example.com",
+  "password": "secret123"
+}
+
+### 0.2 Login — store response as loginRequest
+# @name loginRequest
+POST {{baseUrl}}/api/login
+Content-Type: application/json
+
+{
+  "email": "cache_test@example.com",
+  "password": "secret123"
+}
+
+### ==========================================
+### STEP 1: Verify basic CRUD still works
+### ==========================================
+
+### 1.1 Create an author
+POST {{baseUrl}}/api/authors
+Authorization: Bearer {{loginRequest.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Fyodor Dostoevsky"
+}
+
+### 1.2 Get all authors (to find the new ID)
+GET {{baseUrl}}/api/authors
+
+### ==========================================
+### STEP 2: Test cache HIT (this is the key test)
+### ==========================================
+
+### 2.1 First GET — should be cache MISS (look at server logs)
+# Replace 1 with the actual ID from step 1.1
+GET {{baseUrl}}/api/authors/1
+
+### Expected response: 200 OK with author JSON
+### Expected server log: NO "cache hit" message (because it was a miss)
+### Instead: "Failed to update cache" or no log (depends on impl)
+
+### 2.2 Second GET — should be cache HIT
+GET {{baseUrl}}/api/authors/1
+
+### Expected response: 200 OK (same as before)
+### Expected server log: "cache hit: author:1"
+
+### 2.3 Third GET — should be cache HIT again
+GET {{baseUrl}}/api/authors/1
+
+### Expected server log: "cache hit: author:1"
+
+### 2.4 10 more requests (to see consistent cache hits)
+GET {{baseUrl}}/api/authors/1
+GET {{baseUrl}}/api/authors/1
+GET {{baseUrl}}/api/authors/1
+GET {{baseUrl}}/api/authors/1
+GET {{baseUrl}}/api/authors/1
+
+### ==========================================
+### STEP 3: Test cache INVALIDATION
+### ==========================================
+
+### 3.1 Update the author — should invalidate cache
+PUT {{baseUrl}}/api/authors/1
+Authorization: Bearer {{loginRequest.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Fyodor M. Dostoevsky"
+}
+
+### 3.2 GET again — should be cache MISS (cache was invalidated)
+GET {{baseUrl}}/api/authors/1
+
+### Expected response: name is now "Fyodor M. Dostoevsky"
+### Expected server log: NO "cache hit" (this was a miss)
+### Cache should be re-populated with new name
+
+### 3.3 GET again — should be cache HIT with new name
+GET {{baseUrl}}/api/authors/1
+
+### Expected response: name is "Fyodor M. Dostoevsky"
+### Expected server log: "cache hit: author:1"
+
+### ==========================================
+### STEP 4: Test cache MISS when key doesn't exist
+### ==========================================
+
+### 4.1 Get non-existent author — should be cache MISS
+GET {{baseUrl}}/api/authors/99999
+
+### Expected response: 404 Not Found
+### Expected server log: NO "cache hit" (was a miss)
+
+### 4.2 Get non-existent author again — should still be cache MISS
+### (we don't cache 404 responses)
+GET {{baseUrl}}/api/authors/99999
+
+### Expected response: 404 Not Found
+### Expected server log: NO "cache hit" (was a miss)
+
+### ==========================================
+### STEP 5: Test DELETE invalidation
+### ==========================================
+
+### ⚠️ Only run this if you want to delete the test author
+
+### 5.1 Delete the author — should invalidate cache
+# DELETE {{baseUrl}}/api/authors/1
+# Authorization: Bearer {{loginRequest.response.body.token}}
+
+### 5.2 Try to GET deleted author — should be 404
+# GET {{baseUrl}}/api/authors/1
+
+### Expected: 404 Not Found (no stale data from cache!)

@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq" // PostgreSQL driver
+	"github.com/matin-sp/-online-library-management-system/internal/cache"
 	"github.com/matin-sp/-online-library-management-system/internal/handler"
 	"github.com/matin-sp/-online-library-management-system/internal/middleware"
 	"github.com/matin-sp/-online-library-management-system/internal/repository"
@@ -41,24 +43,43 @@ func main() {
 	}
 	fmt.Println("Successfully connected to PostgreSQL!")
 
-	// 2. Instantiate components (repository -> service -> handler)
+	// 2. Connect to Redis (optional: the app still works if Redis is down)
+	redisDB := 0
+	if raw := os.Getenv("REDIS_DB"); raw != "" {
+		redisDB, err = strconv.Atoi(raw)
+		if err != nil {
+			log.Fatal("REDIS_DB must be a number: ", err)
+		}
+	}
+	appCache := cache.New(os.Getenv("REDIS_ADDR"), os.Getenv("REDIS_PASSWORD"), redisDB)
+	defer appCache.Close()
+
+	if err := appCache.Ping(); err != nil {
+		log.Println("WARNING: Redis is not reachable, running without cache:", err)
+	} else {
+		fmt.Println("Successfully connected to Redis!")
+	}
+
+	// 3. Instantiate components (repository -> service -> handler)
+	// Users are NOT cached: login must always read fresh data and the row
+	// contains a password hash.
 	userRepo := repository.NewUserRepository(db)
 	userService := service.NewUserService(userRepo)
 	userHandler := handler.NewUserHandler(userService)
 
 	// --- AUTHOR FEATURE ---
 	authorRepo := repository.NewAuthorRepository(db)
-	authorService := service.NewAuthorService(authorRepo)
+	authorService := service.NewAuthorService(authorRepo, appCache)
 	authorHandler := handler.NewAuthorHandler(authorService)
 	// --- END AUTHOR FEATURE ---
 
 	// --- BOOK FEATURE ---
 	bookRepo := repository.NewBookRepository(db)
-	bookService := service.NewBookService(bookRepo)
+	bookService := service.NewBookService(bookRepo, appCache)
 	bookHandler := handler.NewBookHandler(bookService)
 	// --- END BOOK FEATURE ---
 
-	// 3. Setup Gin server and define routes
+	// 4. Setup Gin server and define routes
 	router := gin.Default()
 
 	api := router.Group("/api")
