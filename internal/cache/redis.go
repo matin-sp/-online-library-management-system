@@ -11,8 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Every Redis call must finish quickly. If Redis is slow or dead, we give up
-// and let the service use the database instead.
+
 const opTimeout = 200 * time.Millisecond
 
 // Cache is a thin wrapper around the Redis client.

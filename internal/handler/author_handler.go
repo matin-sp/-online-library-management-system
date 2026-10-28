@@ -70,17 +70,7 @@ func (h *AuthorHandler) Create(c *gin.Context) {
     c.JSON(http.StatusCreated, author)
 }
 
-// GetAll handles GET /api/authors and GET /api/authors?name=dost&page=2&limit=10
-//
-// Query parameters (all optional):
-//   - name: filter authors whose name contains this text (case-insensitive
-//     partial match). At most 100 runes (NOT 100 bytes - international-friendly).
-//   - page: which page to return. Must be >= 1. Defaults to 1.
-//   - limit: how many rows per page. Must be between 1 and 100. Defaults to 10.
-//
-// Bad values (e.g. ?page=0 or ?limit=1000) return 400 Bad Request.
-// A page beyond the last one (e.g. ?page=99 with only 2 pages of data) returns
-// 200 with an empty data array - that is normal, not an error.
+
 func (h *AuthorHandler) GetAll(c *gin.Context) {
     // 1) Parse and validate pagination parameters (?page=, ?limit=).
     //    pageParams writes the 400 response itself if input is bad, so we
@@ -90,9 +80,6 @@ func (h *AuthorHandler) GetAll(c *gin.Context) {
         return
     }
 
-    // 2) Read the optional ?name= filter. c.Query returns "" if absent.
-    //    We validate the length in runes (not bytes) so that Persian, Arabic,
-    //    Chinese, etc. names get the same 100-character limit as English ones.
     name := c.Query("name")
     if utf8.RuneCountInString(name) > 100 {
         c.JSON(http.StatusBadRequest, gin.H{"error": "name must be at most 100 characters"})
@@ -108,15 +95,10 @@ func (h *AuthorHandler) GetAll(c *gin.Context) {
         return
     }
 
-    // 4) result is a *model.Page[model.Author], which serializes to:
-    //        { "data": [...], "page": 2, "limit": 10, "total": 14, "total_pages": 2 }
-    //    Note: the response shape changed from a plain array to an object
-    //    with pagination metadata. The handler does not need to do anything
-    //    special - we just hand the Page struct to gin's JSON serializer.
     c.JSON(http.StatusOK, result)
 }
 
-// GetByID handles GET /api/authors/:id
+
 func (h *AuthorHandler) GetByID(c *gin.Context) {
     id, ok := authorIDFromParam(c)
     if !ok {

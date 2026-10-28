@@ -6,3 +6,13 @@ type Book struct {
     ReleaseYear int    `json:"release_year"`
     AuthorID    int    `json:"author_id"`
 }
+
+
+type BookFilter struct {
+	Title    string 
+	AuthorID int    
+	YearFrom int   
+	YearTo   int    
+	Page     int 
+	Limit    int    
+}

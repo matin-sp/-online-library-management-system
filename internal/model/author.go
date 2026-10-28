@@ -6,7 +6,7 @@ type Author struct {
 }
 
 type AuthorFilter struct {
-	Name  string // ?name=  (search, optional)
+	Name  string 
 	Page  int    
 	Limit int    
 }
