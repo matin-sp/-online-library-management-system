@@ -1,19 +1,25 @@
 package repository
 
 import (
+	"database/sql"
 	"errors"
 
 	"github.com/matin-sp/-online-library-management-system/internal/model"
 )
 
-// ErrCopyNotAvailable means the copy cannot be lent right now. The service
-// returns it when the status is not "available", and the repository returns
-// it when the database itself refuses the loan (the partial unique index
-// uq_active_loan: the copy already has an open loan). Both mean the same to
-// the client, so both are the same error.
-var ErrCopyNotAvailable = errors.New("copy is not available")
+var (
+	// ErrCopyNotAvailable means the copy cannot be lent right now. The service
+	// returns it when the status is not "available", and the repository returns
+	// it when the database itself refuses the loan (the partial unique index
+	// uq_active_loan: the copy already has an open loan). Both mean the same to
+	// the client, so both are the same error.
+	ErrCopyNotAvailable = errors.New("copy is not available")
 
-// loanColumns must be in the same order as the Scan call in Create.
+	ErrLoanNotFound        = errors.New("loan not found")
+	ErrLoanAlreadyReturned = errors.New("loan is already returned")
+)
+
+// loanColumns must be in the same order as the Scan calls below.
 const loanColumns = "id, user_id, copy_id, borrowed_at, due_date, returned_at, renewal_count"
 
 // LoanRepository holds the SQL for the loans table.
@@ -22,6 +28,19 @@ type LoanRepository struct{}
 
 func NewLoanRepository() *LoanRepository {
 	return &LoanRepository{}
+}
+
+// scanLoan reads one loan from a row. No row means the loan does not exist.
+func scanLoan(row *sql.Row) (*model.Loan, error) {
+	var l model.Loan
+	err := row.Scan(&l.ID, &l.UserID, &l.CopyID, &l.BorrowedAt, &l.DueDate, &l.ReturnedAt, &l.RenewalCount)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrLoanNotFound
+		}
+		return nil, err
+	}
+	return &l, nil
 }
 
 // HasOverdueByUser tells if the user still holds a book that is past its due date.
@@ -70,4 +89,30 @@ func (r *LoanRepository) Create(q Queryer, userID, copyID, loanDays int) (*model
 		return nil, err
 	}
 	return &l, nil
+}
+
+// GetByID reads a loan WITHOUT locking it.
+func (r *LoanRepository) GetByID(q Queryer, id int) (*model.Loan, error) {
+	return scanLoan(q.QueryRow("SELECT "+loanColumns+" FROM loans WHERE id = $1", id))
+}
+
+// LockByID reads a loan and locks its row until the surrounding transaction
+// ends. If another transaction is returning the same loan right now, this
+// call waits and then returns the NEW state (with returned_at filled in).
+func (r *LoanRepository) LockByID(q Queryer, id int) (*model.Loan, error) {
+	return scanLoan(q.QueryRow(
+		"SELECT "+loanColumns+" FROM loans WHERE id = $1 FOR NO KEY UPDATE", id))
+}
+
+// MarkReturned closes an open loan: it sets returned_at to the real current
+// time and gives back the updated loan. clock_timestamp() is the time right
+// now, while now() would be the time the transaction started.
+// If there is no OPEN loan with this id, it returns ErrLoanAlreadyReturned.
+func (r *LoanRepository) MarkReturned(q Queryer, id int) (*model.Loan, error) {
+	loan, err := scanLoan(q.QueryRow(
+		"UPDATE loans SET returned_at = clock_timestamp() WHERE id = $1 AND returned_at IS NULL RETURNING "+loanColumns, id))
+	if errors.Is(err, ErrLoanNotFound) {
+		return nil, ErrLoanAlreadyReturned
+	}
+	return loan, err
 }

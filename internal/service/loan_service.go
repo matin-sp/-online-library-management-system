@@ -8,11 +8,13 @@ import (
 	"github.com/matin-sp/-online-library-management-system/internal/repository"
 )
 
-// Errors the loan service can return. The first three are born in the
+// Errors the loan service can return. The first four are born in the
 // repositories and only re-exported here; the others are business rules.
 var (
-	ErrUserNotFound     = repository.ErrUserNotFound
-	ErrCopyNotAvailable = repository.ErrCopyNotAvailable
+	ErrUserNotFound        = repository.ErrUserNotFound
+	ErrCopyNotAvailable    = repository.ErrCopyNotAvailable
+	ErrLoanNotFound        = repository.ErrLoanNotFound
+	ErrLoanAlreadyReturned = repository.ErrLoanAlreadyReturned
 
 	ErrUserHasUnpaidFines   = errors.New("user has unpaid fines")
 	ErrUserHasOverdueLoans  = errors.New("user has overdue loans")
@@ -128,4 +130,84 @@ func (s *LoanService) Borrow(userID, copyID int) (*model.Loan, error) {
 		return nil, err
 	}
 	return loan, nil
+}
+
+// ReturnResult is what Return gives back: the closed loan, and the fine if the
+// book came back late (nil when it was on time).
+type ReturnResult struct {
+	Loan *model.Loan
+	Fine *model.Fine
+}
+
+// Return checks a book back in (the librarian does this at the desk).
+// Everything happens in ONE transaction: the loan is closed, the fine is
+// created if the book is late, and the copy becomes available again, or
+// nothing changes at all.
+//
+// Lock order is the same as in Borrow: user, then loan, then copy. The user is
+// locked here too on purpose: without it, a Borrow of the same user running at
+// the same moment could pass its fine check just before this return creates
+// the fine, and the user would end up with an unpaid fine AND a new loan.
+func (s *LoanService) Return(loanID int) (*ReturnResult, error) {
+	// 1. Begin (same rules as in Borrow: only tx after this line, never s.db).
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// 2. Read the loan without a lock, only to learn who the borrower is.
+	// The user of a loan never changes, so this is safe.
+	loan, err := s.loans.GetByID(tx, loanID)
+	if err != nil {
+		return nil, err // ErrLoanNotFound or a database error
+	}
+
+	// 3. Lock the user first.
+	if err := s.users.LockByID(tx, loan.UserID); err != nil {
+		return nil, err
+	}
+
+	// 4. Lock the loan and read it again. If another request returned it while
+	// we were waiting for the lock, we see returned_at filled in now.
+	loan, err = s.loans.LockByID(tx, loanID)
+	if err != nil {
+		return nil, err
+	}
+	if loan.ReturnedAt != nil {
+		return nil, ErrLoanAlreadyReturned
+	}
+
+	// 5. Lock the copy (we only need the lock, not the data).
+	if _, err := s.books.LockByID(tx, loan.CopyID); err != nil {
+		return nil, err
+	}
+
+	// 6. Close the loan. returned_at is the real current time.
+	loan, err = s.loans.MarkReturned(tx, loanID)
+	if err != nil {
+		return nil, err
+	}
+	result := &ReturnResult{Loan: loan}
+
+	// 7. A late return creates the fine. MarkReturned always fills ReturnedAt.
+	days := lateDays(loan.DueDate, *loan.ReturnedAt)
+	if days > 0 {
+		fine, err := s.fines.Create(tx, loanID, days, fineFor(days))
+		if err != nil {
+			return nil, err
+		}
+		result.Fine = fine
+	}
+
+	// 8. The copy is back on the shelf.
+	if err := s.books.SetStatus(tx, loan.CopyID, model.CopyStatusAvailable); err != nil {
+		return nil, err
+	}
+
+	// 9. Save everything.
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }

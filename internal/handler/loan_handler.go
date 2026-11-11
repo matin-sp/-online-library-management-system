@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/matin-sp/-online-library-management-system/internal/service"
@@ -35,6 +36,10 @@ func respondLoanError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 	case errors.Is(err, service.ErrCopyNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "book copy not found"})
+	case errors.Is(err, service.ErrLoanNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "loan not found"})
+	case errors.Is(err, service.ErrLoanAlreadyReturned):
+		c.JSON(http.StatusConflict, gin.H{"error": "this loan was already returned"})
 	case errors.Is(err, service.ErrCopyNotAvailable):
 		c.JSON(http.StatusConflict, gin.H{"error": "this copy is not available for borrowing"})
 	case errors.Is(err, service.ErrUserHasUnpaidFines):
@@ -65,4 +70,32 @@ func (h *LoanHandler) Borrow(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, loan)
+}
+
+// loanIDFromParam reads and validates the :id URL parameter of a loan.
+// It writes the 400 response itself, so callers just return when ok is false.
+func loanIDFromParam(c *gin.Context) (int, bool) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id must be a positive integer"})
+		return 0, false
+	}
+	return id, true
+}
+
+// Return handles POST /api/loans/:id/return (admin only, no request body):
+// the librarian checks a book back in. The answer has the closed loan and the
+// fine, which is null when the book was not late.
+func (h *LoanHandler) Return(c *gin.Context) {
+	loanID, ok := loanIDFromParam(c)
+	if !ok {
+		return
+	}
+
+	result, err := h.service.Return(loanID)
+	if err != nil {
+		respondLoanError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"loan": result.Loan, "fine": result.Fine})
 }

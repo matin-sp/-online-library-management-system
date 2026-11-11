@@ -146,8 +146,9 @@ func main() {
 		admin.PATCH("/copies/:id/status", bookCopyHandler.UpdateStatus)
 		// --- END BOOK COPY FEATURE ---
 
-		// --- LOAN FEATURE: the librarian checks out a copy to a user ---
+		// --- LOAN FEATURE: the librarian checks books out and back in ---
 		admin.POST("/loans", loanHandler.Borrow)
+		admin.POST("/loans/:id/return", loanHandler.Return)
 		// --- END LOAN FEATURE ---
 	}
 
