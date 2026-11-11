@@ -87,6 +87,16 @@ func main() {
 	bookCopyHandler := handler.NewBookCopyHandler(bookCopyService)
 	// --- END BOOK COPY FEATURE ---
 
+	// --- LOAN FEATURE ---
+	// The loan service owns the database transaction, so it receives db itself.
+	// The loan and fine repositories keep no db: they work on whatever
+	// Queryer (db or tx) the service gives them.
+	loanRepo := repository.NewLoanRepository()
+	fineRepo := repository.NewFineRepository()
+	loanService := service.NewLoanService(db, userRepo, bookCopyRepo, loanRepo, fineRepo)
+	loanHandler := handler.NewLoanHandler(loanService)
+	// --- END LOAN FEATURE ---
+
 	// 4. Setup Gin server and define routes
 	router := gin.Default()
 
@@ -135,6 +145,10 @@ func main() {
 		admin.POST("/books/:id/copies", bookCopyHandler.Create)
 		admin.PATCH("/copies/:id/status", bookCopyHandler.UpdateStatus)
 		// --- END BOOK COPY FEATURE ---
+
+		// --- LOAN FEATURE: the librarian checks out a copy to a user ---
+		admin.POST("/loans", loanHandler.Borrow)
+		// --- END LOAN FEATURE ---
 	}
 
 	router.Run(":9090")
