@@ -8,13 +8,7 @@ import (
 )
 
 var (
-	// ErrCopyNotAvailable means the copy cannot be lent right now. The service
-	// returns it when the status is not "available", and the repository returns
-	// it when the database itself refuses the loan (the partial unique index
-	// uq_active_loan: the copy already has an open loan). Both mean the same to
-	// the client, so both are the same error.
 	ErrCopyNotAvailable = errors.New("copy is not available")
-
 	ErrLoanNotFound        = errors.New("loan not found")
 	ErrLoanAlreadyReturned = errors.New("loan is already returned")
 )
@@ -22,7 +16,6 @@ var (
 // loanColumns must be in the same order as the Scan calls below.
 const loanColumns = "id, user_id, copy_id, borrowed_at, due_date, returned_at, renewal_count"
 
-// LoanRepository holds the SQL for the loans table.
 // It keeps no database handle: every method receives a Queryer.
 type LoanRepository struct{}
 

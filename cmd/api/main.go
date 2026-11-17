@@ -126,6 +126,13 @@ func main() {
 	protected.Use(middleware.AuthMiddleware())
 	{
 		protected.GET("/me/profile", userHandler.Profile)
+
+		// --- LOAN FEATURE: a member sees and renews HIS OWN loans ---
+		// The user id always comes from the token, never from the URL.
+		protected.POST("/loans/:id/renew", loanHandler.Renew)
+		protected.GET("/me/loans", loanHandler.MyLoans)
+		protected.GET("/me/fines", loanHandler.MyFines)
+		// --- END LOAN FEATURE ---
 	}
 
 	// Admin-only routes. AuthMiddleware runs first (inherited from "protected"),
@@ -149,6 +156,7 @@ func main() {
 		// --- LOAN FEATURE: the librarian checks books out and back in ---
 		admin.POST("/loans", loanHandler.Borrow)
 		admin.POST("/loans/:id/return", loanHandler.Return)
+		admin.GET("/loans/overdue", loanHandler.Overdue)
 		// --- END LOAN FEATURE ---
 	}
 

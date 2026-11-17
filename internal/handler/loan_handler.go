@@ -40,6 +40,14 @@ func respondLoanError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "loan not found"})
 	case errors.Is(err, service.ErrLoanAlreadyReturned):
 		c.JSON(http.StatusConflict, gin.H{"error": "this loan was already returned"})
+	case errors.Is(err, service.ErrRenewLimitReached):
+		c.JSON(http.StatusConflict, gin.H{"error": "this loan was already renewed once"})
+	case errors.Is(err, service.ErrRenewTooLate):
+		c.JSON(http.StatusConflict, gin.H{"error": "this loan is past its due date and cannot be renewed"})
+	case errors.Is(err, service.ErrRenewNotAllowed):
+		c.JSON(http.StatusConflict, gin.H{"error": "this loan cannot be renewed"})
+	case errors.Is(err, service.ErrInvalidLoanStatus):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "status must be active, overdue or returned"})
 	case errors.Is(err, service.ErrCopyNotAvailable):
 		c.JSON(http.StatusConflict, gin.H{"error": "this copy is not available for borrowing"})
 	case errors.Is(err, service.ErrUserHasUnpaidFines):

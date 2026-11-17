@@ -8,8 +8,6 @@ import (
 	"github.com/matin-sp/-online-library-management-system/internal/repository"
 )
 
-// Errors the loan service can return. The first four are born in the
-// repositories and only re-exported here; the others are business rules.
 var (
 	ErrUserNotFound        = repository.ErrUserNotFound
 	ErrCopyNotAvailable    = repository.ErrCopyNotAvailable
@@ -42,14 +40,7 @@ func NewLoanService(
 	return &LoanService{db: db, users: users, books: books, loans: loans, fines: fines}
 }
 
-// Borrow checks out one copy to one user (the librarian does this at the desk).
-// Everything happens in ONE transaction: either the loan is created AND the
-// copy becomes checked_out, or nothing changes at all.
-//
-// RULE: after db.Begin(), every repository call gets tx and NEVER s.db.
-// A call with s.db would run outside the transaction, without any error.
-//
-// Lock order is always: user first, then copy. This prevents deadlocks.
+
 func (s *LoanService) Borrow(userID, copyID int) (*model.Loan, error) {
 	limits := borrowLimitsFor(userID)
 
